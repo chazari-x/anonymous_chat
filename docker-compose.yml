@@ -1,0 +1,7 @@
+volumes:
+  data:
+
+services:
+  bot:
+    image: golang
+    build: .
