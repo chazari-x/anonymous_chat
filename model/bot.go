@@ -102,7 +102,6 @@ func AddToRoom(oneID, twoID int64) {
 	for i := 0; i < len(U); i++ {
 		if U[i].ID == oneID || U[i].ID == twoID {
 			U[i].Index = "chatting"
-			i = len(U)
 		}
 	}
 

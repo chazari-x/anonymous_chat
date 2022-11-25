@@ -1,20 +1,4 @@
-# База данных
-db:
-  host: "postgres"
-  port: "5432"
-  user: "postgres"
-  pass: "postgrespw"
-  name: "postgres"
-
-redis:
-  host: "redis"
-  port: "6379"
-  pass: ""
-
 # Телеграмм бот
 bot:
-  token: "asdfghjk"
+  token: "5781673213:AAGNpLhYwLn67lMMT_hdJxzKE_5-hOutSSY"
   url: "https://api.telegram.org/"
-
-notify: "http://localhost:8082/notify"
-force_Notify: "http://localhost:8082/force_notify"

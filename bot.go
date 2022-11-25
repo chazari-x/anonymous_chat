@@ -14,7 +14,6 @@ import (
 
 var botMessage model.BotMessage
 var err error
-var index string
 
 type conf struct {
 	// Телеграмм бот
@@ -97,9 +96,6 @@ func (b *Bot) startSendButtons(update model.Update) error {
 	botMessage.ChatId = update.Message.Chat.ChatId
 	botMessage.Text = update.Message.Text
 
-	user := model.GetUser(botMessage.ChatId)
-	index = user.Index
-
 	if err = b.buttons(botMessage.ChatId, botMessage.Text); err != nil {
 		msg := tgbotapi.NewMessage(botMessage.ChatId, "Произошла ошибка на сервере!")
 		if _, err2 := b.bot.Send(msg); err2 != nil {
@@ -113,10 +109,8 @@ func (b *Bot) startSendButtons(update model.Update) error {
 }
 
 func (b *Bot) buttons(id int64, text string) error {
-	var keyboard tgbotapi.ReplyKeyboardMarkup
-	var row []tgbotapi.KeyboardButton
-	var buttons []string
 	var twoID int64
+	index := model.GetUser(botMessage.ChatId).Index
 
 	switch index {
 	case "start_chat", "restart_chat":
@@ -155,70 +149,83 @@ func (b *Bot) buttons(id int64, text string) error {
 	model.UpdateUser(id, index)
 
 	if index != "chatting" {
-		switch index {
-		case "home":
-			buttons = []string{"Найти собеседника"}
-
-		case "start_chat", "restart_chat":
-			model.AddToWaitingList(id)
-			switch index {
-			case "start_chat":
-				buttons = append(buttons, "Остановить поиск собеседника")
-			case "restart_chat":
-				buttons = append(buttons, "Остановить поиск собеседника")
-			case "chatting":
-				buttons = append(buttons, "Найти другого собеседника", "Закончить диалог")
-			}
+		if err := b.sendButtons(id, twoID, text); err != nil {
+			return err
 		}
+	}
 
-		for i := range buttons {
-			btn := tgbotapi.NewKeyboardButton(buttons[i])
-			row := append(row, btn)
-			keyboard.Keyboard = append(keyboard.Keyboard, row)
-		}
+	return nil
+}
 
-		fmt.Println("Пользователи", model.U)
-		fmt.Println("Лист ожидания", model.W)
-		fmt.Println("Комнаты", model.R)
+func (b *Bot) sendButtons(id, twoID int64, text string) error {
+	var keyboard tgbotapi.ReplyKeyboardMarkup
+	var row []tgbotapi.KeyboardButton
+	var buttons []string
+	index := model.GetUser(botMessage.ChatId).Index
 
-		keyboard.ResizeKeyboard = true
+	switch index {
+	case "home":
+		buttons = []string{"Найти собеседника"}
 
+	case "start_chat", "restart_chat":
+		model.AddToWaitingList(id)
 		switch index {
+		case "start_chat":
+			buttons = append(buttons, "Остановить поиск собеседника")
 		case "restart_chat":
-			message := tgbotapi.NewMessage(id, text)
-			message.ReplyMarkup = keyboard
-			if _, err = b.bot.Send(message); err != nil {
-				return err
-			}
+			buttons = append(buttons, "Остановить поиск собеседника")
+		case "chatting":
+			buttons = append(buttons, "Найти другого собеседника", "Закончить диалог")
+		}
+	}
 
+	for i := range buttons {
+		btn := tgbotapi.NewKeyboardButton(buttons[i])
+		row := append(row, btn)
+		keyboard.Keyboard = append(keyboard.Keyboard, row)
+	}
+
+	fmt.Println("Пользователи", model.U)
+	fmt.Println("Лист ожидания", model.W)
+	fmt.Println("Комнаты", model.R)
+
+	keyboard.ResizeKeyboard = true
+
+	switch index {
+	case "restart_chat":
+		message := tgbotapi.NewMessage(id, text)
+		message.ReplyMarkup = keyboard
+		if _, err = b.bot.Send(message); err != nil {
+			return err
+		}
+
+		model.UpdateUser(twoID, "restart_chat")
+		message = tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
+		message.ReplyMarkup = keyboard
+		if _, err = b.bot.Send(message); err != nil {
+			return err
+		}
+
+	case "home":
+		if text == "Диалог закончен. Нажмите кнопку \"Найти собеседника\"." {
 			model.UpdateUser(twoID, "restart_chat")
-			message = tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
+			message := tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
 			message.ReplyMarkup = keyboard
 			if _, err = b.bot.Send(message); err != nil {
 				return err
 			}
-
-		case "home":
-			if text == "Диалог закончен. Нажмите кнопку \"Найти собеседника\"." {
-				model.UpdateUser(twoID, "restart_chat")
-				message := tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
-				message.ReplyMarkup = keyboard
-				if _, err = b.bot.Send(message); err != nil {
-					return err
-				}
-			} else {
-				message := tgbotapi.NewMessage(id, text)
-				message.ReplyMarkup = keyboard
-				if _, err = b.bot.Send(message); err != nil {
-					return err
-				}
-			}
-		default:
+		} else {
 			message := tgbotapi.NewMessage(id, text)
 			message.ReplyMarkup = keyboard
 			if _, err = b.bot.Send(message); err != nil {
 				return err
 			}
+		}
+	default:
+		message := tgbotapi.NewMessage(id, text)
+		message.ReplyMarkup = keyboard
+		if _, err = b.bot.Send(message); err != nil {
+			return err
 		}
 	}
 
