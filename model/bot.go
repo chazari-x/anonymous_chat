@@ -102,7 +102,7 @@ func DeleteFromWaitingList(id int64) {
 func GetFromWaitingList() (int64, int64) {
 	var oneID int64
 	var twoID int64
-	if len(W) != 0 && len(W) > 2 {
+	if len(W) > 2 {
 		one := rand.Intn(len(W))
 		oneID = W[one].ID
 		W = append(W[:one], W[one+1:]...)
