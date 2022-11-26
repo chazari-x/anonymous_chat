@@ -1,5 +1,7 @@
 package model
 
+import "math/rand"
+
 type WaitingList struct {
 	ID int64 `json:"id"`
 }
@@ -100,17 +102,27 @@ func DeleteFromWaitingList(id int64) {
 func GetFromWaitingList() (int64, int64) {
 	var oneID int64
 	var twoID int64
-	if len(W) != 0 && len(W) >= 2 {
+	if len(W) != 0 && len(W) > 2 {
+		one := rand.Intn(len(W))
+		oneID = W[one].ID
+		W = append(W[:one], W[one+1:]...)
+
+		two := rand.Intn(len(W))
+		twoID = W[two].ID
+		W = append(W[:two], W[two+1:]...)
+
+		return oneID, twoID
+	} else if len(W) == 2 {
 		oneID = W[0].ID
 		W = append(W[:0], W[1:]...)
 
 		twoID = W[0].ID
 		W = append(W[:0], W[1:]...)
+
+		return oneID, twoID
 	} else {
 		return 0, 0
 	}
-
-	return oneID, twoID
 }
 
 func AddToRoom(oneID, twoID int64) {

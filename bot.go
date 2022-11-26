@@ -74,6 +74,7 @@ func (b *Bot) StartRoom() error {
 			fmt.Println("---------------")
 			fmt.Println("Изменение комнаты", model.R)
 			fmt.Println("---------------")
+			time.Sleep(time.Millisecond * 100)
 			if err := b.sendButtons(oneID, twoID, "Собеседник найден."+
 				"\n\nВведите команду /next для поиска нового собеседника "+
 				"или нажмите кнопку \"Найти нового собеседника\""+
@@ -82,7 +83,7 @@ func (b *Bot) StartRoom() error {
 				return err
 			}
 		}
-		time.Sleep(time.Millisecond * 1000)
+		time.Sleep(time.Millisecond * 500)
 	}
 }
 
@@ -148,7 +149,7 @@ func (b *Bot) buttons(oneID int64, text string) error {
 
 	case "chatting":
 		switch text {
-		case "🔍 Найти другого собеседника", "/next":
+		case "🔍 Найти другого собеседника", "/next", "\"🔍 Найти собеседника\"":
 			twoID = model.RestartRoom(oneID)
 			index = "restart_chat"
 			text = "Идет поиск другого собеседника..." +
@@ -158,7 +159,7 @@ func (b *Bot) buttons(oneID int64, text string) error {
 			if err := b.sendButtons(oneID, twoID, text); err != nil {
 				return err
 			}
-		case "⛔ Закончить диалог", "/stop":
+		case "⛔ Закончить диалог", "/stop", "⛔ Остановить поиск собеседника":
 			twoID = model.DeleteRoom(oneID)
 			index = "home"
 			text = "Диалог закончен. " +
