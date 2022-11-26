@@ -92,7 +92,12 @@ func getUpdate(url string, offset int) ([]model.Update, error) {
 		return nil, fmt.Errorf("http get err: %s", err.Error())
 	}
 
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		if err := Body.Close(); err != nil {
+			log.Fatalln(err.Error())
+		}
+	}(resp.Body)
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read all body err: %s", err.Error())
