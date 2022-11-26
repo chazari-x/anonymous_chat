@@ -69,9 +69,24 @@ func UpdateUser(id int64, index string) {
 }
 
 func AddToWaitingList(id int64) {
-	W = append(W, WaitingList{
-		ID: id,
-	})
+	if len(W) == 0 {
+		W = append(W, WaitingList{
+			ID: id,
+		})
+	} else {
+		for i := 0; i < len(W); i++ {
+			if W[i].ID != id && i != len(W)-1 {
+				break
+			} else if W[i].ID != id && i == len(W)-1 {
+				W = append(W, WaitingList{
+					ID: id,
+				})
+			} else {
+				break
+			}
+		}
+	}
+
 }
 
 func DeleteFromWaitingList(id int64) {
@@ -111,17 +126,64 @@ func AddToRoom(oneID, twoID int64) {
 	})
 }
 
-func DeleteFromRoom(id int64) int64 {
+func RestartRoom(oneID int64) int64 {
 	var twoID int64
 	for i := 0; i < len(R); i++ {
-		if R[i].UOne == id || R[i].UTwo == id {
-			if R[i].UOne != id {
+		if R[i].UOne == oneID || R[i].UTwo == oneID {
+			if R[i].UOne != oneID {
 				twoID = R[i].UOne
 			} else {
 				twoID = R[i].UTwo
 			}
 			AddToWaitingList(R[i].UOne)
 			AddToWaitingList(R[i].UTwo)
+			R = append(R[:i], R[i+1:]...)
+			i = len(R)
+		}
+	}
+
+	return twoID
+}
+
+func RoomWriter() {
+	for {
+		if len(R) == 1 {
+			if R[0].UOne == R[0].UTwo {
+				R = []Room{}
+			}
+		} else if len(R) != 0 {
+			for i := 0; i < len(R); i++ {
+				if R[i].UOne == R[i].UTwo {
+					R = append(R[:i], R[i+1:]...)
+				}
+			}
+		}
+	}
+}
+
+func RoomUser(oneID int64) int64 {
+	for i := 0; i < len(R); i++ {
+		if R[i].UOne == oneID {
+			return R[i].UTwo
+		} else if R[i].UTwo == oneID {
+			return R[i].UOne
+		}
+	}
+
+	return 0
+}
+
+func DeleteRoom(oneID int64) int64 {
+	var twoID int64
+	for i := 0; i < len(R); i++ {
+		if R[i].UOne == oneID || R[i].UTwo == oneID {
+			if R[i].UOne != oneID {
+				twoID = R[i].UOne
+				AddToWaitingList(R[i].UOne)
+			} else {
+				twoID = R[i].UTwo
+				AddToWaitingList(R[i].UTwo)
+			}
 			R = append(R[:i], R[i+1:]...)
 			i = len(R)
 		}

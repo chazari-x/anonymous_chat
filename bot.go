@@ -41,7 +41,13 @@ func (b *Bot) StartBot() error {
 	url := fmt.Sprintf("%sbot%s", b.conf.Bot.URL, b.conf.Bot.Token)
 	offset := 0
 
-	go b.StartRoom()
+	go func() {
+		if err = b.StartRoom(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	go model.RoomWriter()
 
 	for {
 		if updates, err := getUpdate(url, offset); err != nil {
@@ -60,15 +66,18 @@ func (b *Bot) StartBot() error {
 	}
 }
 
-func (b *Bot) StartRoom() {
+func (b *Bot) StartRoom() error {
 	for {
 		oneID, twoID := model.GetFromWaitingList()
 		if oneID != 0 && twoID != 0 {
 			model.AddToRoom(oneID, twoID)
 			fmt.Println("Изменение комнаты", model.R)
-		} else {
-			time.Sleep(time.Millisecond * 1000)
+
+			if err := b.sendButtons(oneID, twoID, "Собеседник найден"); err != nil {
+				return err
+			}
 		}
+		time.Sleep(time.Millisecond * 1000)
 	}
 }
 
@@ -108,7 +117,7 @@ func (b *Bot) startSendButtons(update model.Update) error {
 	return nil
 }
 
-func (b *Bot) buttons(id int64, text string) error {
+func (b *Bot) buttons(oneID int64, text string) error {
 	var twoID int64
 	index := model.GetUser(botMessage.ChatId).Index
 
@@ -116,25 +125,33 @@ func (b *Bot) buttons(id int64, text string) error {
 	case "start_chat", "restart_chat":
 		switch text {
 		case "Остановить поиск собеседника", "/stop":
-			model.DeleteFromWaitingList(id)
+			model.DeleteFromWaitingList(oneID)
 			index = "home"
 			text = "Поиск собеседника остановлен. Нажмите кнопку \"Найти собеседника\"."
 		}
 
+		model.UpdateUser(oneID, index)
+
 	case "chatting":
 		switch text {
 		case "Найти другого собеседника", "/next":
-			twoID = model.DeleteFromRoom(id)
+			twoID = model.RestartRoom(oneID)
 			index = "restart_chat"
 			text = "Идет поиск другого собеседника..."
+			model.UpdateUser(oneID, index)
 
 		case "Закончить диалог", "/stop":
-			twoID = model.DeleteFromRoom(id)
+			twoID = model.DeleteRoom(oneID)
 			index = "home"
 			text = "Диалог закончен. Нажмите кнопку \"Найти собеседника\"."
+			model.UpdateUser(oneID, index)
+
+		default:
+			index = "message"
+
 		}
 
-	case "home":
+	default:
 		switch text {
 		case "Найти собеседника", "Найти другого собеседника", "/next":
 			index = "start_chat"
@@ -144,12 +161,16 @@ func (b *Bot) buttons(id int64, text string) error {
 			index = "home"
 			text = "Нажмите кнопку \"Найти собеседника\"."
 		}
+
+		model.UpdateUser(oneID, index)
 	}
 
-	model.UpdateUser(id, index)
-
-	if index != "chatting" {
-		if err := b.sendButtons(id, twoID, text); err != nil {
+	if index != "message" {
+		if err := b.sendButtons(oneID, twoID, text); err != nil {
+			return err
+		}
+	} else {
+		if err := b.sendMessage(oneID, text); err != nil {
 			return err
 		}
 	}
@@ -157,26 +178,26 @@ func (b *Bot) buttons(id int64, text string) error {
 	return nil
 }
 
-func (b *Bot) sendButtons(id, twoID int64, text string) error {
+func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 	var keyboard tgbotapi.ReplyKeyboardMarkup
 	var row []tgbotapi.KeyboardButton
 	var buttons []string
-	index := model.GetUser(botMessage.ChatId).Index
+	var index = model.GetUser(botMessage.ChatId).Index
 
 	switch index {
 	case "home":
 		buttons = []string{"Найти собеседника"}
 
 	case "start_chat", "restart_chat":
-		model.AddToWaitingList(id)
+		model.AddToWaitingList(oneID)
 		switch index {
 		case "start_chat":
 			buttons = append(buttons, "Остановить поиск собеседника")
 		case "restart_chat":
 			buttons = append(buttons, "Остановить поиск собеседника")
-		case "chatting":
-			buttons = append(buttons, "Найти другого собеседника", "Закончить диалог")
 		}
+	case "chatting":
+		buttons = append(buttons, "Найти другого собеседника", "Закончить диалог")
 	}
 
 	for i := range buttons {
@@ -192,41 +213,65 @@ func (b *Bot) sendButtons(id, twoID int64, text string) error {
 	keyboard.ResizeKeyboard = true
 
 	switch index {
-	case "restart_chat":
-		message := tgbotapi.NewMessage(id, text)
+	case "start_chat":
+		message := tgbotapi.NewMessage(oneID, text)
 		message.ReplyMarkup = keyboard
 		if _, err = b.bot.Send(message); err != nil {
 			return err
 		}
 
-		model.UpdateUser(twoID, "restart_chat")
-		message = tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
-		message.ReplyMarkup = keyboard
-		if _, err = b.bot.Send(message); err != nil {
-			return err
-		}
-
-	case "home":
-		if text == "Диалог закончен. Нажмите кнопку \"Найти собеседника\"." {
-			model.UpdateUser(twoID, "restart_chat")
-			message := tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
+	case "home", "restart_chat":
+		if text == "Поиск собеседника остановлен. Нажмите кнопку \"Найти собеседника\"." ||
+			text == "Нажмите кнопку \"Найти собеседника\"." {
+			message := tgbotapi.NewMessage(oneID, text)
 			message.ReplyMarkup = keyboard
 			if _, err = b.bot.Send(message); err != nil {
 				return err
 			}
 		} else {
-			message := tgbotapi.NewMessage(id, text)
+			message := tgbotapi.NewMessage(oneID, text)
 			message.ReplyMarkup = keyboard
 			if _, err = b.bot.Send(message); err != nil {
 				return err
 			}
+
+			var row1 []tgbotapi.KeyboardButton
+			var key tgbotapi.ReplyKeyboardMarkup
+			key.ResizeKeyboard = true
+			row1 = append(row1, tgbotapi.NewKeyboardButton("Остановить поиск собеседника"))
+			key.Keyboard = append(key.Keyboard, row1)
+			model.UpdateUser(twoID, "restart_chat")
+			msg := tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
+			msg.ReplyMarkup = key
+			if _, err = b.bot.Send(msg); err != nil {
+				return err
+			}
 		}
-	default:
-		message := tgbotapi.NewMessage(id, text)
+
+	case "chatting":
+		message := tgbotapi.NewMessage(oneID, text)
 		message.ReplyMarkup = keyboard
 		if _, err = b.bot.Send(message); err != nil {
 			return err
 		}
+
+		message = tgbotapi.NewMessage(twoID, text)
+		message.ReplyMarkup = keyboard
+		if _, err = b.bot.Send(message); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *Bot) sendMessage(oneID int64, text string) error {
+	var twoID = model.RoomUser(oneID)
+
+	message := tgbotapi.NewMessage(twoID, text)
+	message.ParseMode = "Markdown"
+	if _, err = b.bot.Send(message); err != nil {
+		return fmt.Errorf(strconv.FormatInt(twoID, 10), err.Error())
 	}
 
 	return nil
