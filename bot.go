@@ -2,14 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"example.com/m/v2/model"
 	"fmt"
-	tgbotapi "gopkg.in/telegram-bot-api.v4"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+
+	"example.com/m/v2/model"
+	tgbotapi "gopkg.in/telegram-bot-api.v4"
 )
 
 var botMessage model.BotMessage
@@ -51,7 +53,11 @@ func (b *Bot) StartBot() error {
 
 	for {
 		if updates, err := getUpdate(url, offset); err != nil {
-			return fmt.Errorf("get update err: %s", err.Error())
+			if strings.Contains(err.Error(), "connection reset by peer") {
+				log.Printf("get update err: connection reset by peer")
+			} else {
+				return fmt.Errorf("get update err: %s", err.Error())
+			}
 		} else {
 			for _, update := range updates {
 				go func() {

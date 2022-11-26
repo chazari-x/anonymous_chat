@@ -1,10 +1,11 @@
 package main
 
 import (
-	_ "github.com/lib/pq"
-	"gopkg.in/yaml.v3"
 	"log"
 	"os"
+
+	_ "github.com/lib/pq"
+	"gopkg.in/yaml.v3"
 )
 
 const configFile = "config/dev.yaml"
