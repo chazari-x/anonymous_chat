@@ -71,9 +71,14 @@ func (b *Bot) StartRoom() error {
 		oneID, twoID := model.GetFromWaitingList()
 		if oneID != 0 && twoID != 0 {
 			model.AddToRoom(oneID, twoID)
+			fmt.Println("---------------")
 			fmt.Println("Изменение комнаты", model.R)
-
-			if err := b.sendButtons(oneID, twoID, "Собеседник найден"); err != nil {
+			fmt.Println("---------------")
+			if err := b.sendButtons(oneID, twoID, "Собеседник найден."+
+				"\n\nВведите команду /next для поиска нового собеседника "+
+				"или нажмите кнопку \"Найти нового собеседника\""+
+				"\n\nВведите команду /stop для прекращения диалога "+
+				"или нажмите кнопку \"Закончить диалог\""); err != nil {
 				return err
 			}
 		}
@@ -124,53 +129,62 @@ func (b *Bot) buttons(oneID int64, text string) error {
 	switch index {
 	case "start_chat", "restart_chat":
 		switch text {
-		case "Остановить поиск собеседника", "/stop":
+		case "⛔ Остановить поиск собеседника", "/stop":
 			model.DeleteFromWaitingList(oneID)
 			index = "home"
-			text = "Поиск собеседника остановлен. Нажмите кнопку \"Найти собеседника\"."
+			text = "Поиск собеседника остановлен. " +
+				"\n\nВведите команду /find для поиска собеседника " +
+				"или нажмите кнопку \"🔍 Найти собеседника\"."
+			model.UpdateUser(oneID, index)
+			if err := b.sendButtons(oneID, twoID, text); err != nil {
+				return err
+			}
 		}
-
-		model.UpdateUser(oneID, index)
 
 	case "chatting":
 		switch text {
-		case "Найти другого собеседника", "/next":
+		case "🔍 Найти другого собеседника", "/next":
 			twoID = model.RestartRoom(oneID)
 			index = "restart_chat"
-			text = "Идет поиск другого собеседника..."
+			text = "Идет поиск другого собеседника..." +
+				"\n\nВведите команду /stop для прекращения поиска " +
+				"или нажмите кнопку \"⛔ Остановить поиск собеседника\""
 			model.UpdateUser(oneID, index)
-
-		case "Закончить диалог", "/stop":
+			if err := b.sendButtons(oneID, twoID, text); err != nil {
+				return err
+			}
+		case "⛔ Закончить диалог", "/stop":
 			twoID = model.DeleteRoom(oneID)
 			index = "home"
-			text = "Диалог закончен. Нажмите кнопку \"Найти собеседника\"."
+			text = "Диалог закончен. " +
+				"\n\nВведите команду /find для поиска собеседника " +
+				"или нажмите кнопку \"🔍 Найти собеседника\"."
 			model.UpdateUser(oneID, index)
-
+			if err := b.sendButtons(oneID, twoID, text); err != nil {
+				return err
+			}
 		default:
 			index = "message"
-
+			if err := b.sendMessage(oneID, text); err != nil {
+				return err
+			}
 		}
 
 	default:
 		switch text {
-		case "Найти собеседника", "Найти другого собеседника", "/next":
+		case "🔍 Найти собеседника", "🔍 Найти другого собеседника", "/next", "/find":
 			index = "start_chat"
-			text = "Идет поиск собеседника..."
+			text = "Идет поиск собеседника..." +
+				"\n\nВведите команду /stop для прекращения поиска " +
+				"или нажмите кнопку \"⛔ Остановить поиск собеседника\""
 
-		case "Остановить поиск собеседника", "/stop", "Закончить диалог":
+		default:
 			index = "home"
-			text = "Нажмите кнопку \"Найти собеседника\"."
+			text = "Введите команду /find для поиска собеседника " +
+				"или нажмите кнопку \"🔍 Найти собеседника\"."
 		}
-
 		model.UpdateUser(oneID, index)
-	}
-
-	if index != "message" {
 		if err := b.sendButtons(oneID, twoID, text); err != nil {
-			return err
-		}
-	} else {
-		if err := b.sendMessage(oneID, text); err != nil {
 			return err
 		}
 	}
@@ -186,18 +200,18 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 
 	switch index {
 	case "home":
-		buttons = []string{"Найти собеседника"}
+		buttons = []string{"🔍 Найти собеседника"}
 
 	case "start_chat", "restart_chat":
 		model.AddToWaitingList(oneID)
 		switch index {
 		case "start_chat":
-			buttons = append(buttons, "Остановить поиск собеседника")
+			buttons = append(buttons, "⛔ Остановить поиск собеседника")
 		case "restart_chat":
-			buttons = append(buttons, "Остановить поиск собеседника")
+			buttons = append(buttons, "⛔ Остановить поиск собеседника")
 		}
 	case "chatting":
-		buttons = append(buttons, "Найти другого собеседника", "Закончить диалог")
+		buttons = append(buttons, "🔍 Найти другого собеседника", "⛔ Закончить диалог")
 	}
 
 	for i := range buttons {
@@ -206,9 +220,11 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 		keyboard.Keyboard = append(keyboard.Keyboard, row)
 	}
 
+	fmt.Println("---------------")
 	fmt.Println("Пользователи", model.U)
 	fmt.Println("Лист ожидания", model.W)
 	fmt.Println("Комнаты", model.R)
+	fmt.Println("---------------")
 
 	keyboard.ResizeKeyboard = true
 
@@ -221,8 +237,11 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 		}
 
 	case "home", "restart_chat":
-		if text == "Поиск собеседника остановлен. Нажмите кнопку \"Найти собеседника\"." ||
-			text == "Нажмите кнопку \"Найти собеседника\"." {
+		if text == "Поиск собеседника остановлен. "+
+			"\n\nВведите команду /find для поиска собеседника "+
+			"или нажмите кнопку \"🔍 Найти собеседника\"." ||
+			text == "Введите команду /find для поиска собеседника "+
+				"или нажмите кнопку \"🔍 Найти собеседника\"." {
 			message := tgbotapi.NewMessage(oneID, text)
 			message.ReplyMarkup = keyboard
 			if _, err = b.bot.Send(message); err != nil {
@@ -238,10 +257,12 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 			var row1 []tgbotapi.KeyboardButton
 			var key tgbotapi.ReplyKeyboardMarkup
 			key.ResizeKeyboard = true
-			row1 = append(row1, tgbotapi.NewKeyboardButton("Остановить поиск собеседника"))
+			row1 = append(row1, tgbotapi.NewKeyboardButton("⛔ Остановить поиск собеседника"))
 			key.Keyboard = append(key.Keyboard, row1)
 			model.UpdateUser(twoID, "restart_chat")
-			msg := tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника.")
+			msg := tgbotapi.NewMessage(twoID, "Собеседник ушёл. Поиск нового собеседника."+
+				"\n\nВведите команду /stop для прекращения поиска "+
+				"или нажмите кнопку \"⛔ Остановить поиск собеседника\"")
 			msg.ReplyMarkup = key
 			if _, err = b.bot.Send(msg); err != nil {
 				return err
