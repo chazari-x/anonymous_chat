@@ -77,9 +77,9 @@ func (b *Bot) StartRoom() error {
 		oneID, twoID := model.GetFromWaitingList()
 		if oneID != 0 && twoID != 0 {
 			model.AddToRoom(oneID, twoID)
-			fmt.Println("---------------")
-			fmt.Println("Изменение комнаты", model.R)
-			fmt.Println("---------------")
+			//fmt.Println("---------------")
+			//fmt.Println("Изменение комнаты", model.R)
+			//fmt.Println("---------------")
 			time.Sleep(time.Millisecond * 100)
 			if err := b.sendButtons(oneID, twoID, "Собеседник найден."+
 				"\n\nВведите команду /next для поиска нового собеседника "+
@@ -136,7 +136,7 @@ func (b *Bot) startSendButtons(update model.Update) error {
 
 func (b *Bot) buttons(oneID int64, text string) error {
 	var twoID int64
-	index := model.GetUser(botMessage.ChatId).Index
+	index := model.GetUser(oneID).Index
 
 	switch index {
 	case "start_chat", "restart_chat":
@@ -149,7 +149,7 @@ func (b *Bot) buttons(oneID int64, text string) error {
 				"или нажмите кнопку \"🔍 Найти собеседника\"."
 			model.UpdateUser(oneID, index)
 			if err := b.sendButtons(oneID, twoID, text); err != nil {
-				return err
+				return fmt.Errorf("buttons start_chat and %s err: %s", "restart_chat", err.Error())
 			}
 		}
 
@@ -163,7 +163,7 @@ func (b *Bot) buttons(oneID int64, text string) error {
 				"или нажмите кнопку \"⛔ Остановить поиск собеседника\""
 			model.UpdateUser(oneID, index)
 			if err := b.sendButtons(oneID, twoID, text); err != nil {
-				return err
+				return fmt.Errorf("buttons chatting err: %s", err.Error())
 			}
 		case "⛔ Закончить диалог", "/stop", "⛔ Остановить поиск собеседника":
 			twoID = model.DeleteRoom(oneID)
@@ -173,12 +173,12 @@ func (b *Bot) buttons(oneID int64, text string) error {
 				"или нажмите кнопку \"🔍 Найти собеседника\"."
 			model.UpdateUser(oneID, index)
 			if err := b.sendButtons(oneID, twoID, text); err != nil {
-				return err
+				return fmt.Errorf("buttons chatting err: %s", err.Error())
 			}
 		default:
 			index = "message"
 			if err := b.sendMessage(oneID, text); err != nil {
-				return err
+				return fmt.Errorf("buttons chatting err: %s", err.Error())
 			}
 		}
 
@@ -197,7 +197,7 @@ func (b *Bot) buttons(oneID int64, text string) error {
 		}
 		model.UpdateUser(oneID, index)
 		if err := b.sendButtons(oneID, twoID, text); err != nil {
-			return err
+			return fmt.Errorf("buttons default err: %s", err.Error())
 		}
 	}
 
@@ -232,11 +232,11 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 		keyboard.Keyboard = append(keyboard.Keyboard, row)
 	}
 
-	fmt.Println("---------------")
-	fmt.Println("Пользователи", model.U)
-	fmt.Println("Лист ожидания", model.W)
-	fmt.Println("Комнаты", model.R)
-	fmt.Println("---------------")
+	//fmt.Println("---------------")
+	//fmt.Println("Пользователи", model.U)
+	//fmt.Println("Лист ожидания", model.W)
+	//fmt.Println("Комнаты", model.R)
+	//fmt.Println("---------------")
 
 	keyboard.ResizeKeyboard = true
 
@@ -245,7 +245,7 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 		message := tgbotapi.NewMessage(oneID, text)
 		message.ReplyMarkup = keyboard
 		if _, err = b.bot.Send(message); err != nil {
-			return err
+			return fmt.Errorf("sendButtons start_chat err: %s", err.Error())
 		}
 
 	case "home", "restart_chat":
@@ -257,13 +257,13 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 			message := tgbotapi.NewMessage(oneID, text)
 			message.ReplyMarkup = keyboard
 			if _, err = b.bot.Send(message); err != nil {
-				return err
+				return fmt.Errorf("sendButtons home restart_chat err: %s", err.Error())
 			}
 		} else {
 			message := tgbotapi.NewMessage(oneID, text)
 			message.ReplyMarkup = keyboard
 			if _, err = b.bot.Send(message); err != nil {
-				return err
+				return fmt.Errorf("sendButtons home restart_chat err: %s", err.Error())
 			}
 
 			var row1 []tgbotapi.KeyboardButton
@@ -277,7 +277,7 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 				"или нажмите кнопку \"⛔ Остановить поиск собеседника\"")
 			msg.ReplyMarkup = key
 			if _, err = b.bot.Send(msg); err != nil {
-				return err
+				return fmt.Errorf("sendButtons home restart_chat err: %s", err.Error())
 			}
 		}
 
@@ -285,13 +285,13 @@ func (b *Bot) sendButtons(oneID, twoID int64, text string) error {
 		message := tgbotapi.NewMessage(oneID, text)
 		message.ReplyMarkup = keyboard
 		if _, err = b.bot.Send(message); err != nil {
-			return err
+			return fmt.Errorf("sendButtons chatting err: %s", err.Error())
 		}
 
 		message = tgbotapi.NewMessage(twoID, text)
 		message.ReplyMarkup = keyboard
 		if _, err = b.bot.Send(message); err != nil {
-			return err
+			return fmt.Errorf("sendButtons chatting err: %s", err.Error())
 		}
 	}
 
